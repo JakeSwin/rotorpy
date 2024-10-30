@@ -5,6 +5,8 @@ from scipy.spatial.transform import Rotation
 from rotorpy.vehicles.hummingbird_params import quad_params
 
 import time
+import os
+import mmap
 
 """
 Multirotor models
@@ -134,6 +136,19 @@ class Multirotor(object):
 
         self.aero = aero
 
+        # fd = os.open("C:\\Users\\jacob\\Documents\\rotorpytest\\uavdata.bin", os.O_RDWR)
+        
+        # mm = mmap.mmap(fd, 28, access=mmap.ACCESS_READ | mmap.ACCESS_WRITE)
+        # self.mm_array = np.frombuffer(mm, dtype=np.float32)
+
+        self.mm_array = np.memmap("C:\\Users\\jacob\\Documents\\rotorpytest\\uavdata.bin",
+                                  dtype=np.float32,
+                                  mode='r+',
+                                  shape=(7,))
+        
+        self.mm_array[:] = np.full((7,), -1.0, dtype=np.float32)
+        self.mm_array.flush()
+
     def extract_geometry(self):
         """
         Extracts the geometry in self.rotors for efficient use later on in the computation of 
@@ -172,10 +187,14 @@ class Multirotor(object):
         return state_dot 
 
 
+    # MAIN STEP FUNCTION FOR VEHICLE DYNAMICS
     def step(self, state, control, t_step):
         """
         Integrate dynamics forward from state given constant control for time t_step.
         """
+
+        while not (self.mm_array == np.full((7,), -1)).all():
+            continue
 
         cmd_rotor_speeds = self.get_cmd_motor_speeds(state, control)
 
@@ -200,6 +219,10 @@ class Multirotor(object):
 
         # Add noise to the motor speed measurement
         state['rotor_speeds'] += np.random.normal(scale=np.abs(self.motor_noise), size=(self.num_rotors,))
+
+        self.mm_array[0:3] = state["x"]
+        self.mm_array[3:] = state["q"]
+        self.mm_array.flush()
 
         return state
 

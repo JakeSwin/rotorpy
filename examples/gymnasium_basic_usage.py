@@ -4,7 +4,11 @@ import matplotlib.pyplot as plt
 
 # For this demonstration, we'll just use the SE3 controller. 
 from rotorpy.controllers.quadrotor_control import SE3Control
-from rotorpy.vehicles.crazyflie_params import quad_params
+# from rotorpy.vehicles.crazyflie_params import quad_params
+from rotorpy.vehicles.hummingbird_params import quad_params
+
+from rotorpy.trajectories.circular_traj import CircularTraj
+from rotorpy.trajectories.minsnap import MinSnap
 
 controller = SE3Control(quad_params)
 
@@ -47,16 +51,30 @@ env = gym.make("Quadrotor-v0",
 
 # Now reset the quadrotor.
 # Setting initial_state to 'random' will randomly place the vehicle in the map near the origin.
-# But you can also set the environment resetting to be deterministic. 
-observation, info = env.reset(initial_state='random')
+# But you can also set the environment resetting to be deterministic.
+# Initial state original parameter does not work, had to pass options with default values
+observation, info = env.reset(options={'pos_bound': 2, 'vel_bound': 0})
 
 # Number of timesteps
-T = 300
+T = 3800
 time = np.arange(T)*(1/100)      # Just for plotting purposes.
 position = np.zeros((T, 3))      # Just for plotting purposes. 
 velocity = np.zeros((T, 3))      # Just for plotting purposes.
 reward_sum = np.zeros((T,))      # Just for plotting purposes.
 actions = np.zeros((T, 4))       # Just for plotting purposes.
+
+points = np.array([
+    [0., 0., 0.],
+    [3., 3., 0.],
+    [-3., 3., 0.],
+    [-3., -3., 0.],
+    [3., -3., 0.],
+    [3., 3., 0.],
+    [0., 0., 0.]
+])
+
+# traj = CircularTraj(radius=2)
+traj = MinSnap(points)
 
 for i in range(T):
 
@@ -73,7 +91,11 @@ for i in range(T):
             'yaw': 0, 
             'yaw_dot': 0, 
             'yaw_ddot': 0}
-    control_dict = controller.update(0, state, flat)
+    if i < 500:
+        control_dict = controller.update(0, state, flat)
+    else:
+        next_state = traj.update(time[i-500])
+        control_dict = controller.update(0, state, next_state)
 
     # Extract the commanded motor speeds.
     cmd_motor_speeds = control_dict['cmd_motor_speeds']
