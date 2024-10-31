@@ -422,7 +422,7 @@ class QuadrotorEnv(gym.Env):
         self.rendering = True # Set rendering bool to true. 
 
         plot_position = deepcopy(self.vehicle_state['x'])
-        plot_rotation = Rotation.from_quat(self.vehicle_state['q']).as_matrix()
+        plot_rotation = Rotation.from_quat(self.vehicle_state['q']).as_matrix() 
         plot_wind = deepcopy(self.vehicle_state['wind'])
 
         if self.world_artists is None and not ('x' in self.ax.get_xlabel()):
