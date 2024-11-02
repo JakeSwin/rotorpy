@@ -142,12 +142,14 @@ class Multirotor(object):
         # mm = mmap.mmap(fd, 28, access=mmap.ACCESS_READ | mmap.ACCESS_WRITE)
         # self.mm_array = np.frombuffer(mm, dtype=np.float32)
 
-        self.mm_array = np.memmap("/home/swin/godot_rotorpy/uavdata.bin",
+        self.mmap_size = 7 
+
+        self.mm_array = np.memmap("C:\\Users\\jacob\\Documents\\rotorpytest\\uavdata.bin",
                                   dtype=np.float32,
                                   mode='r+',
-                                  shape=(6,))
+                                  shape=(self.mmap_size,))
         
-        self.mm_array[:] = np.full((6,), -1.0, dtype=np.float32)
+        self.mm_array[:] = np.full((self.mmap_size,), -1.0, dtype=np.float32)
         self.mm_array.flush()
 
     def extract_geometry(self):
@@ -194,7 +196,7 @@ class Multirotor(object):
         Integrate dynamics forward from state given constant control for time t_step.
         """
 
-        while not (self.mm_array == np.full((6,), -1)).all():
+        while not (self.mm_array == np.full((self.mmap_size,), -1)).all():
             continue
 
         cmd_rotor_speeds = self.get_cmd_motor_speeds(state, control)
@@ -222,7 +224,7 @@ class Multirotor(object):
         state['rotor_speeds'] += np.random.normal(scale=np.abs(self.motor_noise), size=(self.num_rotors,))
 
         self.mm_array[0:3] = state["x"]
-        self.mm_array[3:] = Rotation.from_quat(state['q']).as_matrix()
+        self.mm_array[3:] = state["q"]
         self.mm_array.flush()
 
         return state

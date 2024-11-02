@@ -72,13 +72,12 @@ points = np.array([
     [3., 3., 0.],
     [0., 0., 0.]
 ])
-yaw_angles = np.array([0, np.pi/2, np.pi, np.pi + np.pi/2, 0, 0, 0, 0])
+yaw_angles = np.array([0, np.pi/4, np.pi/2, np.pi, -np.pi/4, 0, 0, 0])
 
-# traj = CircularTraj(radius=2)
-traj = MinSnap(points, yaw_angles=yaw_angles)
+traj = CircularTraj(radius=2)
+# traj = MinSnap(points, yaw_angles=yaw_angles)
 
 for i in range(T):
-    print(i)
     ##### Below is just code for computing the action via the SE3 controller and converting it to an action [-1,1]
 
     # Unpack the observation from the environment
