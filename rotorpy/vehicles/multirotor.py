@@ -136,7 +136,7 @@ class Multirotor(object):
         self.aero = aero
 
         self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.PUSH)
+        self.socket = self.context.socket(zmq.REQ)
         self.socket.setsockopt(zmq.SNDHWM, 1)
         self.socket.connect("tcp://localhost:5556")
         # self.socket.connect("ipc:///roterpy.ipc")
@@ -217,6 +217,7 @@ class Multirotor(object):
         data[0:3] = state["x"]
         data[3:] = state["q"]
         self.socket.send(data.tobytes())
+        self.socket.recv()
 
         return state
 
