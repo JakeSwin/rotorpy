@@ -5,9 +5,7 @@ from scipy.spatial.transform import Rotation
 from rotorpy.vehicles.hummingbird_params import quad_params
 from scipy.spatial.transform import Rotation
 
-import time
-import os
-import mmap
+import zmq
 
 """
 Multirotor models
@@ -137,20 +135,15 @@ class Multirotor(object):
 
         self.aero = aero
 
-        # fd = os.open("C:\\Users\\jacob\\Documents\\rotorpytest\\uavdata.bin", os.O_RDWR)
-        
-        # mm = mmap.mmap(fd, 28, access=mmap.ACCESS_READ | mmap.ACCESS_WRITE)
-        # self.mm_array = np.frombuffer(mm, dtype=np.float32)
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.PUSH)
+        self.socket.setsockopt(zmq.SNDHWM, 1)
+        self.socket.connect("tcp://localhost:5556")
+        # self.socket.connect("ipc:///roterpy.ipc")
 
-        self.mmap_size = 7 
-
-        self.mm_array = np.memmap("C:\\Users\\jacob\\Documents\\rotorpytest\\uavdata.bin",
-                                  dtype=np.float32,
-                                  mode='r+',
-                                  shape=(self.mmap_size,))
-        
-        self.mm_array[:] = np.full((self.mmap_size,), -1.0, dtype=np.float32)
-        self.mm_array.flush()
+    def __del__(self):
+        self.socket.close()
+        self.context.term()
 
     def extract_geometry(self):
         """
@@ -196,9 +189,6 @@ class Multirotor(object):
         Integrate dynamics forward from state given constant control for time t_step.
         """
 
-        while not (self.mm_array == np.full((self.mmap_size,), -1)).all():
-            continue
-
         cmd_rotor_speeds = self.get_cmd_motor_speeds(state, control)
 
         # The true motor speeds can not fall below min and max speeds.
@@ -223,9 +213,10 @@ class Multirotor(object):
         # Add noise to the motor speed measurement
         state['rotor_speeds'] += np.random.normal(scale=np.abs(self.motor_noise), size=(self.num_rotors,))
 
-        self.mm_array[0:3] = state["x"]
-        self.mm_array[3:] = state["q"]
-        self.mm_array.flush()
+        data = np.zeros((7,), dtype=np.float32)
+        data[0:3] = state["x"]
+        data[3:] = state["q"]
+        self.socket.send(data.tobytes())
 
         return state
 
