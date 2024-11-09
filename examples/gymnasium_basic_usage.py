@@ -74,7 +74,7 @@ points = np.array([
 ])
 yaw_angles = np.array([0, np.pi/4, np.pi/2, np.pi, -np.pi/4, 0, 0, 0])
 
-traj = CircularTraj(radius=2)
+traj = CircularTraj(radius=4)
 # traj = MinSnap(points, yaw_angles=yaw_angles)
 
 for i in range(T):
