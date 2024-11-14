@@ -2,6 +2,7 @@ import zmq
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 from pykrige.ok import OrdinaryKriging
 
@@ -41,15 +42,16 @@ def get_value_of_image(image):
 
 def main():
     context = zmq.Context()
-    socket = context.socket(zmq.SUB)
+    socket = context.socket(zmq.REQ)
+    socket.setsockopt(zmq.SNDHWM, 1)
     socket.connect("tcp://localhost:5557")
-
-    socket.subscribe("")
 
     i = 0
 
     try:
         while True:
+            time.sleep(1.0)
+            socket.send(b'')
             message = socket.recv_multipart()
 
             image_bytes = message[1]
