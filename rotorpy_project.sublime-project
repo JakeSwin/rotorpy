@@ -1,0 +1,14 @@
+{
+	"folders":
+	[
+		{
+			"path": "."
+		}
+	],
+	"build_systems": [
+		{
+			"name": "Python Venv",
+			"shell_cmd": "C:\\Users\\jacob\\Documents\\rotorpy\\venv\\Scripts\\python.exe $file"
+		}
+	]
+}

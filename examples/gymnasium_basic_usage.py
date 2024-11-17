@@ -66,16 +66,11 @@ actions = np.zeros((T, 4))       # Just for plotting purposes.
 points = np.array([
     [0., 0., 0.],
     [3., 3., 0.],
-    [-3., 3., 0.],
-    [-3., -3., 0.],
-    [3., -3., 0.],
-    [3., 3., 0.],
-    [0., 0., 0.]
 ])
-yaw_angles = np.array([0, np.pi/4, np.pi/2, np.pi, -np.pi/4, 0, 0, 0])
+yaw_angles = np.array([0, np.pi/4])
 
-traj = CircularTraj(radius=4)
-# traj = MinSnap(points, yaw_angles=yaw_angles)
+# traj = CircularTraj(radius=4)
+traj = MinSnap(points, yaw_angles=yaw_angles)
 
 for i in range(T):
     ##### Below is just code for computing the action via the SE3 controller and converting it to an action [-1,1]
@@ -88,7 +83,7 @@ for i in range(T):
             'x_dot': [0, 0, 0], 
             'x_ddot': [0, 0, 0], 
             'x_dddot': [0, 0, 0],
-            'yaw': 0, 
+            'yaw': np.pi/2, 
             'yaw_dot': 0, 
             'yaw_ddot': 0}
     if i < 500:
