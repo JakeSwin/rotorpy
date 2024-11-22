@@ -1,4 +1,5 @@
 import numpy as np
+import zmq
 from scipy.spatial.transform import Rotation
 
 from rotorpy.world import World
@@ -103,6 +104,10 @@ def get_path(min_coord=-30, max_coord=30, step=5, altitude=8):
     return target_poses, target_yaws
 
 if __name__ == "__main__":
+    context = zmq.Context()
+    socket = context.socket(zmq.PUB)
+    socket.bind("tcp://*:5559")
+
     game_env = GameEnv()
     
     state = game_env.initial_state
@@ -124,5 +129,6 @@ if __name__ == "__main__":
         action = controller.update(0, state, flat)
         state = game_env.step(action)
         if fsm.state == "hovering" and fsm.T > 2 and len(target_poses) > target_idx:
+            socket.send_string("take_image")
             fsm.set_target(target_poses[target_idx], target_yaws[target_idx])
             target_idx += 1

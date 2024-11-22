@@ -14,10 +14,6 @@ weed_chance = []
 # Setup matplot
 plt.ion()
 
-fig, ax = plt.subplots()
-cax = plt.imshow([[]], extent=(-3, 3, -3, 3), origin="lower")
-ax.set_ylim(ax.get_ylim()[::-1])
-cbar = plt.colorbar(cax)
 
 def get_value_of_image(image):
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -40,27 +36,76 @@ def get_value_of_image(image):
 
     return avg_pool, red_mask
 
+def get_image(message):
+    image_bytes = message[1]
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    avg_pool, red_mask = get_value_of_image(image)
+
+    image = cv2.bitwise_and(image, image, mask=red_mask) 
+
+    return image, avg_pool
+
 def main():
     context = zmq.Context()
+    poller = zmq.Poller()
+
     socket = context.socket(zmq.REQ)
     socket.setsockopt(zmq.SNDHWM, 1)
     socket.connect("tcp://localhost:5557")
 
+    subscriber = context.socket(zmq.SUB)
+    subscriber.connect("tcp://localhost:5559")
+    subscriber.setsockopt_string(zmq.SUBSCRIBE, "")
+
+    # poller.register(socket, zmq.POLLIN)
+    # poller.register(subscriber, zmq.POLLIN)
+
     i = 0
+    take_image = False
+    waiting_for_image = False
+    image = None
+
+    cv2.namedWindow("Received Image", cv2.WINDOW_NORMAL)
+    fig, ax = plt.subplots()
+    plt.show(block=False)
 
     try:
         while True:
-            time.sleep(1.0)
+            # socks = dict(poller.poll())
+
+            # if subscriber in socks and socks[subscriber] == zmq.POLLIN:
+            #     if subscriber.recv_string(flags=zmq.NOBLOCK) == "take_image":
+            #         take_image = True
+            #         socket.send(b'')
+            #         waiting_for_image = True
+            # elif not take_image:
+            #     continue
+
+            # if socket in socks and socks[socket] == zmq.POLLIN:
+            #     message = socket.recv_multipart()
+            #     take_image = False
+            #     waiting_for_image = False
+            # else:
+            #     continue
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+            if not image is None:
+                cv2.imshow("Received Image", image)
+
+            try:
+                msg = subscriber.recv_string(flags=zmq.NOBLOCK)
+            except Exception:
+                print("no message")
+                continue
+
             socket.send(b'')
             message = socket.recv_multipart()
 
-            image_bytes = message[1]
-            nparr = np.frombuffer(image_bytes, np.uint8)
-            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-            cv2.imshow("Received Image", image)
-
-            avg_pool, _ = get_value_of_image(image)
+            image, avg_pool = get_image(message)
 
             position_bytes = message[3]
             pos = np.frombuffer(position_bytes, np.float32)
@@ -85,21 +130,26 @@ def main():
                     enable_plotting=False,
                 )
 
-                gridx = np.arange(-3, 3, 0.1, dtype='float64')
-                gridy = np.arange(-3, 3, 0.1, dtype='float64')
+                gridx = np.arange(-30, 30, 1, dtype='float64')
+                gridy = np.arange(-30, 30, 1, dtype='float64')
                 zstar, ss = OK.execute("grid", gridx, gridy)
 
-                cax.set_data(zstar)
-                fig.canvas.draw()
-                fig.canvas.flush_events()
+                ax.clear()
+                cax = ax.imshow([[]], extent=(-3, 3, -3, 3), origin="lower")
+                ax.set_ylim(ax.get_ylim()[::-1])
+                cbar = plt.colorbar(cax)
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+                fig.canvas.draw_idle()
+                fig.canvas.start_event_loop(0.1)  # Add small delay for interaction
+                # fig.canvas.draw()
+                # fig.canvas.flush_events()
+
     except KeyboardInterrupt:
         print("Stopping")
     finally:
         cv2.destroyAllWindows()
         socket.close()
+        subscriber.close()
         context.term()
 
 if __name__ == "__main__":
