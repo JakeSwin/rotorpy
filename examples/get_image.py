@@ -2,6 +2,7 @@ import zmq
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 import time
 
 from pykrige.ok import OrdinaryKriging
@@ -13,7 +14,34 @@ weed_chance = []
 
 # Setup matplot
 plt.ion()
+fig, ax = plt.subplots()
+cax = ax.imshow([[]], extent=(-3, 3, -3, 3), origin="lower")
+ax.set_ylim(ax.get_ylim()[::-1])
+plt.show(block=False)
 
+def update_plot():
+    if len(Xs) < 10:
+        return
+
+    OK = OrdinaryKriging(
+        Xs,
+        Ys,
+        weed_chance,
+        variogram_model='exponential',
+        verbose=False,
+        enable_plotting=False,
+    )
+
+    gridx = np.arange(-30, 30, 1, dtype='float64')
+    gridy = np.arange(-30, 30, 1, dtype='float64')
+    zstar, ss = OK.execute("grid", gridx, gridy)
+
+    cax.set_data(zstar)
+
+    fig.canvas.draw_idle()
+    fig.canvas.flush_events()
+
+    plt.pause(0.1)
 
 def get_value_of_image(image):
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -59,37 +87,16 @@ def main():
     subscriber.connect("tcp://localhost:5559")
     subscriber.setsockopt_string(zmq.SUBSCRIBE, "")
 
-    # poller.register(socket, zmq.POLLIN)
-    # poller.register(subscriber, zmq.POLLIN)
-
     i = 0
     take_image = False
     waiting_for_image = False
     image = None
 
     cv2.namedWindow("Received Image", cv2.WINDOW_NORMAL)
-    fig, ax = plt.subplots()
-    plt.show(block=False)
+    # anim = FuncAnimation(fig, update_plot, frames=None, interval=100, blit=False)
 
     try:
         while True:
-            # socks = dict(poller.poll())
-
-            # if subscriber in socks and socks[subscriber] == zmq.POLLIN:
-            #     if subscriber.recv_string(flags=zmq.NOBLOCK) == "take_image":
-            #         take_image = True
-            #         socket.send(b'')
-            #         waiting_for_image = True
-            # elif not take_image:
-            #     continue
-
-            # if socket in socks and socks[socket] == zmq.POLLIN:
-            #     message = socket.recv_multipart()
-            #     take_image = False
-            #     waiting_for_image = False
-            # else:
-            #     continue
-
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
@@ -99,7 +106,6 @@ def main():
             try:
                 msg = subscriber.recv_string(flags=zmq.NOBLOCK)
             except Exception:
-                print("no message")
                 continue
 
             socket.send(b'')
@@ -117,30 +123,30 @@ def main():
                 Ys.append(pos[2])
                 weed_chance.append(avg_pool)
 
-            i += 1
+            update_plot()
+            # i += 1
 
-            if i > 10 and len(Xs) > 10:
-                i = 0
-                OK = OrdinaryKriging(
-                    Xs,
-                    Ys,
-                    weed_chance,
-                    variogram_model='exponential',
-                    verbose=False,
-                    enable_plotting=False,
-                )
+            # if i > 10 and len(Xs) > 10:
+            #     i = 0
+            #     OK = OrdinaryKriging(
+            #         Xs,
+            #         Ys,
+            #         weed_chance,
+            #         variogram_model='exponential',
+            #         verbose=False,
+            #         enable_plotting=False,
+            #     )
 
-                gridx = np.arange(-30, 30, 1, dtype='float64')
-                gridy = np.arange(-30, 30, 1, dtype='float64')
-                zstar, ss = OK.execute("grid", gridx, gridy)
+            #     gridx = np.arange(-30, 30, 1, dtype='float64')
+            #     gridy = np.arange(-30, 30, 1, dtype='float64')
+            #     zstar, ss = OK.execute("grid", gridx, gridy)
 
-                ax.clear()
-                cax = ax.imshow([[]], extent=(-3, 3, -3, 3), origin="lower")
-                ax.set_ylim(ax.get_ylim()[::-1])
-                cbar = plt.colorbar(cax)
+            #     ax.clear()
+            #     ax.set_ylim(ax.get_ylim()[::-1])
+            #     cbar = plt.colorbar(cax)
 
-                fig.canvas.draw_idle()
-                fig.canvas.start_event_loop(0.1)  # Add small delay for interaction
+                # fig.canvas.draw_idle()
+                # fig.canvas.start_event_loop(0.1)  # Add small delay for interaction
                 # fig.canvas.draw()
                 # fig.canvas.flush_events()
 
