@@ -18,58 +18,6 @@ Xs = []
 Ys = []
 weed_chance = []
 
-# zstar = np.zeros((60, 60)) 
-# fig = px.imshow(zstar)
-# fig.add_trace(
-#     go.Heatmap(z=zstar)
-# )
-# fig.show()
-
-# Setup matplot
-# plt.ion()
-# fig, ax = plt.subplots()
-# cax = ax.imshow([[]], extent=(-3, 3, -3, 3), origin="lower")
-# ax.set_ylim(ax.get_ylim()[::-1])
-# plt.show(block=False)
-# fig = go.FigureWidget()
-# fig.add_heatmap()
-
-app = dash.Dash(__name__)
-
-app.layout = html.Div([
-    dcc.Graph(id='heatmap'),
-    dcc.Interval(
-        id='interval-component',
-        interval=1000  # milliseconds between updates
-    )
-])
-
-def run(**kwargs):
-    app.run_server(debug=False, use_reloader=False, **kwargs)
-
-def start_server(app, **kwargs):
-    server_process = multiprocessing.Process(target=run)
-    server_process.start()
-    return server_process
-
-@app.callback(
-    Output('heatmap', 'figure'),
-    Input('interval-component', 'n_intervals')
-)
-def update_heatmap(n):
-    # Your data processing here
-    figure = {
-        'data': [{
-            'type': 'heatmap',
-            'z': zstar,
-            'colorscale': 'Viridis'
-        }],
-        'layout': {
-            'title': 'Real-time Heatmap'
-        }
-    }
-    return figure
-
 def update_plot(socket, flags=0):
     if len(Xs) < 10:
         return
@@ -87,30 +35,14 @@ def update_plot(socket, flags=0):
     gridy = np.arange(-30, 30, 1, dtype='float64')
     zstar, ss = OK.execute("grid", gridx, gridy)
 
+    # Package and send GP data
+    data = np.stack([zstar, ss])
     metadata = dict(
-        dtype=str(zstar.dtype),
-        shape=zstar.shape,
+        dtype=str(data.dtype),
+        shape=data.shape,
     )
     socket.send_json(metadata, flags | zmq.SNDMORE)
-    socket.send(zstar, flags)
-    # fig.update_traces(z=zstar, overwrite=True)
-    # fig.show()
-    # with fig.batch_update():
-    #     fig.data[0].z = zstar
-    # if not already_figure:
-    #     fig = px.imshow(zstar)
-    #     fig.show()
-    # else:
-    #     fig.data[0].z = zstar
-
-    # return fig
-
-    # cax.set_data(zstar)
-
-    # fig.canvas.draw_idle()
-    # fig.canvas.flush_events()
-
-    # plt.pause(0.1)
+    socket.send(data, flags)
 
 def get_value_of_image(image):
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -145,10 +77,7 @@ def get_image(message):
     return image, avg_pool
 
 def main():
-    #app.run_server(debug=True)
-    #server_process = start_server(app, host='0.0.0.0', port=8050)
     context = zmq.Context()
-    poller = zmq.Poller()
 
     socket = context.socket(zmq.REQ)
     socket.setsockopt(zmq.SNDHWM, 1)
@@ -161,13 +90,9 @@ def main():
     pub = context.socket(zmq.PUB)
     pub.bind("tcp://*:5560")
 
-    i = 0
-    take_image = False
-    waiting_for_image = False
     image = None
 
     cv2.namedWindow("Received Image", cv2.WINDOW_NORMAL)
-    # anim = FuncAnimation(fig, update_plot, frames=None, interval=100, blit=False)
 
     figure_created = False
 
@@ -200,32 +125,6 @@ def main():
                 weed_chance.append(avg_pool)
 
             update_plot(pub)
-
-            # i += 1
-
-            # if i > 10 and len(Xs) > 10:
-            #     i = 0
-            #     OK = OrdinaryKriging(
-            #         Xs,
-            #         Ys,
-            #         weed_chance,
-            #         variogram_model='exponential',
-            #         verbose=False,
-            #         enable_plotting=False,
-            #     )
-
-            #     gridx = np.arange(-30, 30, 1, dtype='float64')
-            #     gridy = np.arange(-30, 30, 1, dtype='float64')
-            #     zstar, ss = OK.execute("grid", gridx, gridy)
-
-            #     ax.clear()
-            #     ax.set_ylim(ax.get_ylim()[::-1])
-            #     cbar = plt.colorbar(cax)
-
-                # fig.canvas.draw_idle()
-                # fig.canvas.start_event_loop(0.1)  # Add small delay for interaction
-                # fig.canvas.draw()
-                # fig.canvas.flush_events()
 
     except KeyboardInterrupt:
         print("Stopping")
