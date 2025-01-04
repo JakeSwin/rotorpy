@@ -10,6 +10,7 @@ from rotorpy.trajectories.minsnap import MinSnap
 
 import math
 from copy import deepcopy
+from threading import Thread, Event
 
 class GameEnv:
     def __init__(self):
@@ -51,6 +52,25 @@ class GameEnv:
     def print_status(self):
         print("Time: %3.2f \t Position: (%3.2f, %3.2f, %3.2f)" % (self.t, self.vehicle_state['x'][0], self.vehicle_state['x'][1], self.vehicle_state['x'][2]))
 
+# class PublishMessageTimer(Thread):
+#     def __init__(self, target_receiver, publisher):
+#         super().__init__()
+#         self.target_receiver = target_receiver
+#         self.publisher = publisher
+#         self.completed = Event()
+#         self.completed.set()
+
+#     def run(self):
+#         while True:
+#             if not self.completed.wait(2.0):
+#                 self.socket.send_string("take_image")
+#                 self.target_receiver.send(b"done")
+#                 print("Sent Message")
+#                 self.completed.set()
+    
+#     def reset(self):
+#         self.completed.clear()
+
 class DroneFSM:
     def __init__(self):
         self.state = "hovering" 
@@ -58,6 +78,7 @@ class DroneFSM:
         self.target_point = [0, 0, 0]
         self.target_yaw = 0
         self.T = 0
+        self.completed = True
 
     def set_target(self, point, yaw):
         self.traj = MinSnap(
@@ -69,6 +90,7 @@ class DroneFSM:
         self.target_yaw = yaw
         self.state = "moving"
         self.T = 0
+        self.completed = False
 
     def step(self):
         match self.state:
@@ -105,8 +127,12 @@ def get_path(min_coord=-30, max_coord=30, step=5, altitude=8):
 
 if __name__ == "__main__":
     context = zmq.Context()
+
     socket = context.socket(zmq.PUB)
     socket.bind("tcp://*:5559")
+
+    target_receiver = context.socket(zmq.REP)
+    target_receiver.bind("tcp://*:5565")
 
     game_env = GameEnv()
     
@@ -122,13 +148,21 @@ if __name__ == "__main__":
     target_poses, target_yaws = get_path()
     target_idx = 1
 
-    fsm.set_target(target_poses[0], target_yaws[0])
+    # fsm.set_target([0, 0, 8], 0)
 
     while True: 
         flat = fsm.step()
         action = controller.update(0, state, flat)
         state = game_env.step(action)
-        if fsm.state == "hovering" and fsm.T > 2 and len(target_poses) > target_idx:
-            socket.send_string("take_image")
-            fsm.set_target(target_poses[target_idx], target_yaws[target_idx])
-            target_idx += 1
+        try:
+            target_msg = target_receiver.recv(flags=zmq.NOBLOCK)
+            target_data = np.frombuffer(target_msg, dtype=np.float32)
+            fsm.set_target(target_data[0:3], target_data[3])
+            print(f"got data: {target_data[0:3]}, {target_data[3]}")
+        except:
+            if fsm.state == "hovering" and fsm.T > 2.0 and not fsm.completed:
+                print("Sent message")
+                socket.send_string("take_image")
+                target_receiver.send(b"done")
+                fsm.completed = True
+        
